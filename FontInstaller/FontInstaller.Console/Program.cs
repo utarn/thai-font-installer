@@ -313,20 +313,41 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
             // Check for admin privileges
             if (!fontInstaller.IsAdministrator())
             {
-                Console.WriteLine("ERROR: This application requires administrator privileges.");
-                
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    Console.WriteLine("Please run as Administrator.");
+                    // Re-launch self with UAC elevation prompt
+                    try
+                    {
+                        var exePath = Process.GetCurrentProcess().MainModule?.FileName;
+                        if (exePath != null)
+                        {
+                            var startInfo = new ProcessStartInfo
+                            {
+                                FileName = exePath,
+                                Arguments = string.Join(" ", args.Select(a => $"\"{a}\"")),
+                                Verb = "runas",            // triggers UAC popup
+                                UseShellExecute = true     // required for Verb to work
+                            };
+                            Process.Start(startInfo);
+                        }
+                    }
+                    catch (System.ComponentModel.Win32Exception)
+                    {
+                        // User clicked "No" on the UAC dialog
+                        Console.WriteLine("ERROR: Administrator privileges are required to install fonts.");
+                        Console.WriteLine("Press any key to exit...");
+                        Console.ReadKey();
+                    }
+                    return;
                 }
                 else
                 {
+                    Console.WriteLine("ERROR: This application requires administrator privileges.");
                     Console.WriteLine("Please run with sudo.");
+                    Console.WriteLine("\nPress any key to exit...");
+                    Console.ReadKey();
+                    return;
                 }
-                
-                Console.WriteLine("\nPress any key to exit...");
-                Console.ReadKey();
-                return;
             }
 
             string? fontSourcePath = null;
