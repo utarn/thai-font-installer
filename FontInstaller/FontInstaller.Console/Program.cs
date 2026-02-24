@@ -29,6 +29,9 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
         private const uint WM_FONTCHANGE = 0x001D;
         private const int HWND_BROADCAST = 0xffff;
 
@@ -192,36 +195,13 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
                 throw new DirectoryNotFoundException($"Destination directory does not exist: {destinationDirectory}");
             }
 
-            try
-            {
-                string fontFileName = Path.GetFileName(fontFilePath);
-                string destinationPath = Path.Combine(destinationDirectory, fontFileName);
+            string fontFileName = Path.GetFileName(fontFilePath);
+            string destinationPath = Path.Combine(destinationDirectory, fontFileName);
 
-                // Copy font file to destination (only if it doesn't already exist)
-                if (!File.Exists(destinationPath))
-                {
-                    File.Copy(fontFilePath, destinationPath, false); // Don't overwrite if exists
-                }
-
-                // On Windows, add font to system registry
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    AddFontToRegistry(fontFileName);
-
-                    // Load the font resource temporarily
-                    AddFontResource(destinationPath);
-                }
-                // On macOS, we don't need to add to registry - the file placement is sufficient
-                // On Linux, fonts are recognized by the fontconfig system after placement
-            }
-            catch (UnauthorizedAccessException)
-            {
-                throw; // Re-throw to be handled by caller
-            }
-            catch (Exception)
-            {
-                throw; // Re-throw to be handled by caller
-            }
+            // Copy font file to destination, overwriting if it already exists.
+            // On Windows 10/11, placing the file in C:\Windows\Fonts is sufficient
+            // for the system to recognise the font — no registry write or AddFontResource needed.
+            File.Copy(fontFilePath, destinationPath, overwrite: true);
         }
 
         public void AddFontToRegistry(string fontFileName)
@@ -280,8 +260,9 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
             {
                 try
                 {
-                    // Send a WM_FONTCHANGE message to all windows to notify of font changes
-                    SendMessage(new IntPtr(HWND_BROADCAST), WM_FONTCHANGE, IntPtr.Zero, IntPtr.Zero);
+                    // Use PostMessage (non-blocking) instead of SendMessage to avoid hanging
+                    // when broadcasting to all windows - SendMessage waits for each window to respond
+                    PostMessage(new IntPtr(HWND_BROADCAST), WM_FONTCHANGE, IntPtr.Zero, IntPtr.Zero);
                 }
                 catch (Exception)
                 {
