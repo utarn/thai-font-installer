@@ -142,8 +142,15 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
             {
                 foreach (var resourceName in embeddedFontResources)
                 {
-                    // Extract the font file to the temporary directory
-                    string fileName = Path.GetFileName(resourceName.Replace("Fonts/", "").Replace("Fonts\\", ""));
+                    // Embedded resource names use the project's default namespace + link path with dots as separators.
+                    // e.g. "FontInstaller.Console.Fonts.TH Mali Grade6 Bold Italic.ttf"
+                    // We extract the actual filename by finding the ".Fonts." marker.
+                    const string fontsMarker = ".Fonts.";
+                    int markerIndex = resourceName.IndexOf(fontsMarker, StringComparison.OrdinalIgnoreCase);
+                    string fileName = markerIndex >= 0
+                        ? resourceName.Substring(markerIndex + fontsMarker.Length)
+                        : Path.GetFileName(resourceName);
+
                     string tempFontPath = Path.Combine(tempDir, fileName);
 
                     Stream? stream = assembly.GetManifestResourceStream(resourceName);
@@ -198,10 +205,16 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
             string fontFileName = Path.GetFileName(fontFilePath);
             string destinationPath = Path.Combine(destinationDirectory, fontFileName);
 
-            // Copy font file to destination, overwriting if it already exists.
+            // Skip fonts already installed — Windows locks font files that are currently
+            // loaded, so overwriting them would throw "user-mapped section open" error.
+            if (File.Exists(destinationPath))
+            {
+                return;
+            }
+
             // On Windows 10/11, placing the file in C:\Windows\Fonts is sufficient
             // for the system to recognise the font — no registry write or AddFontResource needed.
-            File.Copy(fontFilePath, destinationPath, overwrite: true);
+            File.Copy(fontFilePath, destinationPath, overwrite: false);
         }
 
         public void AddFontToRegistry(string fontFileName)
