@@ -143,9 +143,10 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
                     string fileName = Path.GetFileName(resourceName.Replace("Fonts/", "").Replace("Fonts\\", ""));
                     string tempFontPath = Path.Combine(tempDir, fileName);
 
-                    using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+                    Stream? stream = assembly.GetManifestResourceStream(resourceName);
+                    if (stream != null)
                     {
-                        if (stream != null)
+                        using (stream)
                         {
                             using (FileStream fileStream = new FileStream(tempFontPath, FileMode.Create))
                             {
@@ -426,7 +427,7 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
                     fontInstaller.InstallFonts(fontSourcePath!, fontDestinationPath);
                 }
                 
-                Console.WriteLine("\nFont installation completed!");
+                Console.WriteLine("\nFont installation completed successfully!");
             }
             catch (Exception ex)
             {
@@ -434,7 +435,11 @@ namespace FontInstaller.ConsoleApp // Changed namespace to avoid conflict with S
             }
             
             Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+            // Only wait for key press if launched from console, not from IDE/debugger
+            if (!Debugger.IsAttached)
+            {
+                Console.ReadKey();
+            }
         }
     }
 }
